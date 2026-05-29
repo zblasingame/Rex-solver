@@ -1,0 +1,20 @@
+# Core
+torch>=2.0
+torchvision
+numpy
+scipy
+tqdm
+Pillow
+
+# Diffusion / models
+diffusers>=0.27
+transformers
+datasets
+
+# SDE noise / Brownian motion
+torchsde
+
+# Evaluation (FID, CLIP, LPIPS, ImageReward, clean-fid)
+torchmetrics
+clean-fid
+image-reward

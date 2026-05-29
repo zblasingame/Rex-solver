@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~
+
+# Experiment outputs
+results/
+data/
+checkpoints/
+*.png
+*.jpg
+*.pt
+*.ckpt
+*.npz
+*.npy
+
+# Logs / profiling
+*.log
+log*
+profiler_report*
+nohup.out
+
+# Keep figure assets even though we ignore *.png by default
+# (uncomment if/when a figures/ dir is added)
+# !figures/**

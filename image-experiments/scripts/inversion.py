@@ -10,15 +10,14 @@ For each sample:
      measure MSE in pixel/image space
 
 Usage:
-    python scripts/image_reconstruction_rex.py \
+    python scripts/inversion.py \
         --n_samples 50 \
         --num_inference_steps 50 \
         --freeze_step 1.0 \
-        --guidance 1.0 \
-        --tableau rk4 \
-        --zeta 0.5 \
+        --tableau euler \
+        --zeta 0.999 \
         --prediction_type data \
-        --save_dir results/reconstruction/rex_rk4
+        --save_dir results/reconstruction/rex_euler
 """
 import os
 import sys
@@ -101,7 +100,7 @@ def rex_encode(
     solver = create_rex_solver(
         model, tableau=tableau, n_steps=n_encode_steps,
         prediction_type=prediction_type, adaptive=adaptive,
-        zeta=zeta, scheduler=sd_pipe.scheduler, sched_type=sched_type,
+        zeta=zeta, eps=eps, scheduler=sd_pipe.scheduler, sched_type=sched_type,
     )
     device = latent.device
     t_span = torch.tensor([eps, freeze_step], device=device)
@@ -132,7 +131,7 @@ def rex_decode(
     solver = create_rex_solver(
         model, tableau=tableau, n_steps=n_decode_steps,
         prediction_type=prediction_type, adaptive=adaptive,
-        zeta=zeta, scheduler=sd_pipe.scheduler, sched_type=sched_type,
+        zeta=zeta, eps=eps, scheduler=sd_pipe.scheduler, sched_type=sched_type,
     )
     device = x_t.device
     t_span = torch.tensor([freeze_step, eps], device=device)
@@ -195,9 +194,9 @@ def main():
     parser.add_argument("--seed",                type=int,   default=42)
 
     # Rex
-    parser.add_argument("--tableau",          type=str,   default="rk4",
+    parser.add_argument("--tableau",          type=str,   default="euler",
                         choices=list_rk_methods())
-    parser.add_argument("--zeta",             type=float, default=0.5)
+    parser.add_argument("--zeta",             type=float, default=0.999)
     parser.add_argument("--prediction_type",  type=str,   default="data",
                         choices=["data", "noise"])
     parser.add_argument("--adaptive",         action="store_true")
@@ -212,6 +211,7 @@ def main():
     parser.add_argument("--save_dir", type=str,
                         default="results/reconstruction/rex")
     parser.add_argument("--device",   type=int, default=0)
+    parser.add_argument("--dtype", choices=["fp16", "fp32", "bf16"], default="fp32")
 
     # Comparison with other methods
     parser.add_argument('--sampler_type', type=str, default='rex',
@@ -223,14 +223,18 @@ def main():
     args = parser.parse_args()
 
     device     = f"cuda:{args.device}"
-    dtype      = torch.float32
+    dtype      = {
+        "fp16": torch.float16,
+        "fp32": torch.float32,
+        "bf16": torch.bfloat16,
+    }[args.dtype]
     sched_type = "scaled_linear"
 
     print(f"=== Rex Reconstruction Experiment ===")
     print(f"tableau={args.tableau}  zeta={args.zeta}  "
           f"prediction_type={args.prediction_type}  "
           f"freeze_step={args.freeze_step}  steps={args.num_inference_steps}")
-    print(f"n_samples={args.n_samples}  device={device}")
+    print(f"n_samples={args.n_samples}  device={device}  dtype={args.dtype}")
 
     # ----------------------------------------------------------
     # Load model
@@ -420,10 +424,10 @@ def main():
         # Original
         from PIL import Image as PILImage
         img_pil_orig  = PILImage.fromarray(
-            (img_original.permute(1,2,0).cpu().numpy() * 255).clip(0,255).astype(np.uint8)
+            (img_original.permute(1,2,0).float().cpu().numpy() * 255).clip(0,255).astype(np.uint8)
         )
         img_pil_recon = PILImage.fromarray(
-            (img_recon[0].permute(1,2,0).cpu().numpy() * 255).clip(0,255).astype(np.uint8)
+            (img_recon[0].permute(1,2,0).float().cpu().numpy() * 255).clip(0,255).astype(np.uint8)
         )
         img_pil_orig.save(f"{args.save_dir}/imgs_original/{idx:06d}.png")
         img_pil_recon.save(f"{args.save_dir}/imgs_reconstructed/{idx:06d}.png")

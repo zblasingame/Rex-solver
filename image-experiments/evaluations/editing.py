@@ -1,35 +1,66 @@
-import os
-import torch
+import json
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from pathlib import Path
+
 import numpy as np
 from tqdm import tqdm
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-import json
 
-if __name__ == '__main__':
+METRICS = {
+    "IR": "IR",
+    "CLIPScore": "CLIPScore",
+    "PickScore": "PickScore",
+    "LPIPS": "LPIPS_orig_vs_recon",
+    "LPIPS Edit": "LPIPS_edit_vs_recon",
+}
+
+
+def load_run(path, max_samples):
+    files = sorted(Path(path).glob("*.json"))
+    if max_samples is not None:
+        files = files[:max_samples]
+    if not files:
+        raise ValueError(f"No JSON result files found in {path}")
+
+    values = {name: [] for name in METRICS}
+    for result_path in tqdm(files, desc=str(path)):
+        with result_path.open() as result_file:
+            result = json.load(result_file)
+        for name, key in METRICS.items():
+            values[name].append(result[key])
+
+    return {name: float(np.mean(samples)) for name, samples in values.items()}, len(files)
+
+
+def format_metrics(metrics):
+    return " || ".join(f"{name}: {value:.4f}" for name, value in metrics.items())
+
+
+if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('path', type=str, help='Path to generated images')
+    parser.add_argument(
+        "paths",
+        type=Path,
+        nargs="+",
+        help="One or more directories of per-image JSON results (one directory per seed)",
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=100,
+        help="Maximum samples per run; use 0 to include every JSON file",
+    )
     args = parser.parse_args()
 
-    img_list = [os.path.join(args.path, image) for image in os.listdir(args.path)]
+    max_samples = None if args.max_samples == 0 else args.max_samples
+    runs = []
+    for path in args.paths:
+        metrics, count = load_run(path, max_samples)
+        runs.append(metrics)
+        print(f"{path} (n={count}) || {format_metrics(metrics)}")
 
-    clip_scores = []
-    pick_scores = []
-    ir = []
-    lpips = []
-    lpips_e = []
-
-    for i, path in enumerate(tqdm(img_list)):
-        if i >= 100:
-            break
-
-        with open(path, 'r') as f:
-            data = json.load(f)
-
-        clip_scores.append(data['CLIPScore'])
-        pick_scores.append(data['PickScore'])
-        ir.append(data['IR'])
-        lpips.append(data['LPIPS_orig_vs_recon'])
-        lpips_e.append(data['LPIPS_edit_vs_recon'])
-
-    print(f'IR: {np.mean(ir):.3f} || CLIPScore: {np.mean(clip_scores):.2f} || PickScore: {np.mean(pick_scores):.3f} || LPIPS: {np.mean(lpips):.3f} || LPIPS Edit: {np.mean(lpips_e)}')
+    if len(runs) > 1:
+        print(f"Across {len(runs)} runs/seeds (mean ± sample std):")
+        for name in METRICS:
+            samples = np.asarray([run[name] for run in runs])
+            print(f"{name}: {samples.mean():.4f} ± {samples.std(ddof=1):.4f}")

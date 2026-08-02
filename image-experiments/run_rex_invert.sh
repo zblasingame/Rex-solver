@@ -8,6 +8,6 @@ python scripts/inversion.py \
     --zeta 0.999 \
     --prediction_type data \
     --freeze_step 1 \
-    --eps 0.02 \
+    --eps 0.0002 \
     --device 0 \
-    --save_dir results/inversions/belm/10
+    --save_dir results/inversions/rex_euler/50

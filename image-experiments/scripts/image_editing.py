@@ -178,7 +178,7 @@ def main():
     print('model loaded')
 
     # eval models
-    cs_model = CLIPScore(model_name_or_path='openai/clip-vit-base-patch16').to(device)
+    cs_model = CLIPScore(model_name_or_path='openai/clip-vit-large-patch14').to(device)
     ir_model = RM.load('ImageReward-v1.0', device=device)
     lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze').to(device)
     print('eval models loaded')

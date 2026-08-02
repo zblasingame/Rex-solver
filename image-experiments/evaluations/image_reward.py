@@ -35,8 +35,7 @@ if __name__ == '__main__':
 
     img_list = [os.path.join(args.path, image) for image in os.listdir(args.path)]
 
-    # clip_score_fn = partial(clip_score, model_name_or_path="openai/clip-vit-base-patch16")
-    metric = CLIPScore(model_name_or_path="openai/clip-vit-base-patch16")
+    metric = CLIPScore(model_name_or_path="openai/clip-vit-large-patch14")
 
     model = RM.load('ImageReward-v1.0')
 
@@ -64,4 +63,3 @@ if __name__ == '__main__':
 
 
         print(f'IR: {np.mean(rewards):.3f} || CLIP: {np.mean(scores):.2f}')
-

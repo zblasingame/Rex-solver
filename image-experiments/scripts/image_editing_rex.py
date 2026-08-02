@@ -1,8 +1,8 @@
 """
 Image editing script using the refreshed Rex (Reversible Exponential) solver.
 
-This script implements image editing for diffusion models using the new Rex wrapper
-from rex_wrapper.py, which combines:
+This script implements image editing for diffusion models using the Rex wrapper
+from samplers/rex.py, which combines:
 1. Exponential RK methods (to handle the linear drift in diffusion ODEs)
 2. McCallum-Foster reversible coupling (for algebraic reversibility)
 
@@ -17,10 +17,10 @@ Usage:
         --num_inference_steps 50 \
         --freeze_step 0.5 \
         --guidance 2.0 \
-        --tableau rk4 \
-        --zeta 0.5 \
+        --tableau euler \
+        --zeta 0.999 \
         --prediction_type data \
-        --save_dir results/image_edits/rex_rk4
+        --save_dir results/image_edits/rex_euler
 """
 
 import os
@@ -47,6 +47,16 @@ from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from torchmetrics.multimodal.clip_score import CLIPScore
 import ImageReward as RM
 from transformers import AutoProcessor, AutoModel
+
+
+def set_seed(seed):
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 class PickScoreModel:
@@ -198,11 +208,11 @@ def sd_rex_encode(
     sd_pipe,
     sd_params: dict,
     latent: torch.Tensor,
-    tableau: str = "rk4",
+    tableau: str = "euler",
     n_steps: int = 50,
     prediction_type: str = "data",
     adaptive: bool = False,
-    zeta: float = 0.5,
+    zeta: float = 0.999,
     eps: float = 0.0002,
     freeze_step: float = 0.5,
     sched_type: str = 'scaled_linear',
@@ -257,6 +267,7 @@ def sd_rex_encode(
         prediction_type=prediction_type,
         adaptive=adaptive,
         zeta=zeta,
+        eps=eps,
         scheduler=sd_pipe.scheduler,
         sched_type=sched_type,
     )
@@ -287,11 +298,11 @@ def sd_rex_decode(
     sd_params: dict,
     x_t: torch.Tensor,
     x_hat_t: torch.Tensor,
-    tableau: str = "rk4",
+    tableau: str = "euler",
     n_steps: int = 50,
     prediction_type: str = "data",
     adaptive: bool = False,
-    zeta: float = 0.5,
+    zeta: float = 0.999,
     eps: float = 0.0002,
     freeze_step: float = 0.5,
     sched_type: str = 'scaled_linear',
@@ -347,6 +358,7 @@ def sd_rex_decode(
         prediction_type=prediction_type,
         adaptive=adaptive,
         zeta=zeta,
+        eps=eps,
         scheduler=sd_pipe.scheduler,
         sched_type=sched_type,
     )
@@ -359,7 +371,7 @@ def sd_rex_decode(
         # Reset NFE counter before solve
         solver.nfe = 0
         # Use forward_solve to decode (noise -> image direction)
-        x_0, x_hat_0 = solver.forward_solve(x_t, t_span)
+        x_0, x_hat_0 = solver.forward_solve(x_t, x_hat_t, t_span)
         decode_nfe = solver.nfe
     
     print(f"Decoded: t={freeze_step} -> t={eps}, NFE={decode_nfe}")
@@ -372,7 +384,8 @@ def main():
     parser = argparse.ArgumentParser(description="Image editing with Rex solver")
     
     # General settings
-    parser.add_argument('--num_inference_steps', type=int, default=200)
+    parser.add_argument('--num_inference_steps', type=int, default=100,
+                        help='Full-trajectory step count; freeze_step=0.5 gives 50 steps per direction')
     parser.add_argument('--num_images', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--freeze_step', type=float, default=0.5,
@@ -382,10 +395,10 @@ def main():
                         help='Small time to avoid singularity')
     
     # Rex-specific settings
-    parser.add_argument('--tableau', type=str, default='rk4',
+    parser.add_argument('--tableau', type=str, default='euler',
                         choices=list_rk_methods(),
                         help='RK method for integration')
-    parser.add_argument('--zeta', type=float, default=0.5,
+    parser.add_argument('--zeta', type=float, default=0.999,
                         help='McCallum-Foster coupling parameter (0-1)')
     parser.add_argument('--prediction_type', type=str, default='data',
                         choices=['data', 'noise'],
@@ -454,7 +467,7 @@ def main():
     
     # Evaluation models
     cs_model = CLIPScore(
-        model_name_or_path='openai/clip-vit-base-patch16'
+        model_name_or_path='openai/clip-vit-large-patch14'
     ).to(device)
     ir_model = RM.load('ImageReward-v1.0', device=device)
     lpips = LearnedPerceptualImagePatchSimilarity(

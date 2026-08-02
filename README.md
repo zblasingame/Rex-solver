@@ -74,8 +74,7 @@ Rex-solver/
 │   │   ├── inversion.py          # inversion / reconstruction studies
 │   │   ├── reconstruction.py     # round-trip reconstruction error
 │   │   └── ablations_rex.py      # ablation study (no_coupling / no_exp / no_reparam)
-│   └── evaluations/  # FID / FD-DINOv2 / PickScore / ImageReward / CLIP / LPIPS
-└── boltzmann-sampling/   # coming soon!
+└── evaluations/  # clean-FID / PickScore / ImageReward / CLIP / LPIPS
 ```
 
 ## Installation
@@ -117,18 +116,19 @@ def model(t, x):
                    return_dict=False)[0]
 
 solver = create_rex_solver(
-    model, tableau="rk4", n_steps=50, prediction_type="data", zeta=0.5,
+    model, tableau="euler", n_steps=50, prediction_type="data", zeta=0.999,
     scheduler=scheduler, sched_type="scaled_linear",
 )
 
-t_span = torch.tensor([2e-4, 1.0], device="cuda")
+encode_span = torch.tensor([2e-4, 1.0], device="cuda")
+decode_span = encode_span.flip(0)
 x, x_hat = latent.clone(), latent.clone()
 
 # Encode: data -> noise
 with torch.no_grad():
-    xT, xT_hat = solver.backward_solve(x, x_hat, t_span)
+    xT, xT_hat = solver.backward_solve(x, x_hat, encode_span)
     # Decode: noise -> data (algebraic inverse on the same grid)
-    x0, x0_hat = solver.forward_solve(xT, xT_hat, t_span)
+    x0, x0_hat = solver.forward_solve(xT, xT_hat, decode_span)
 
 print((x0 - latent).abs().max())  # ≈ floating-point epsilon
 ```
@@ -259,14 +259,14 @@ same script.
 ```bash
 cd image-experiments
 python scripts/image_editing_rex.py \
-    --num_inference_steps 167 \
-    --freeze_step 0.6 \
+    --num_inference_steps 100 \
+    --freeze_step 0.5 \
     --num_images 100 \
     --guidance 3.0 \
     --tableau euler \
     --zeta 0.999 \
     --prediction_type noise \
-    --eps 0.0 \
+    --eps 0.0002 \
     --device 0 \
     --save_dir results/image_edits/rex_euler/100
 ```
@@ -301,7 +301,7 @@ python scripts/ablations_rex.py \
     --tableau euler \
     --zeta 0.999 \
     --prediction_type noise \
-    --eps 0.0 \
+    --eps 0.0002 \
     --variants full no_coupling no_exp no_reparam \
     --device 0 \
     --save_dir results/ablations/rex_euler/84
@@ -342,16 +342,19 @@ repository — you must download them yourself and place them under
 
 ## Evaluation
 
-FD-DINOv2 statistics in `image-experiments/experiments/` are the values
-reported in the paper. To regenerate them on your own samples use the
-utilities in `image-experiments/evaluations/`:
+The released evaluation utilities cover clean-FID and the editing metrics.
+
+To evaluate released experiments:
 
 ```bash
-# clean-FID / FD-DINOv2
+# clean-FID
 python evaluations/clean_fid_compute_stats.py <path-to-generated-images>
 
-# Editing metrics (CLIPScore / PickScore / ImageReward / LPIPS)
-python evaluations/editing.py <path-to-result-jsons>
+# One editing run (CLIPScore / PickScore / ImageReward / LPIPS)
+python evaluations/editing.py <path-to-result-jsons> --max-samples 100
+
+# Multiple seed directories: reports the per-seed values and mean ± sample std
+python evaluations/editing.py <seed-1-jsons> <seed-2-jsons> <seed-3-jsons>
 ```
 
 ## Citation

@@ -4,7 +4,7 @@ from tqdm import tqdm
 import numpy as np
 from typing import Callable, List, Literal, Optional, Union
 
-from .rk_tableaus import ButcherTableau, get_rk_tableau, RK4, DOPRI5
+from .rk_tableaus import ButcherTableau, get_rk_tableau, Euler, DOPRI5
 
 
 # Some standard single-step ODE schemes Phi_h(t, x) of the form: x_n+1 = x_n + Phi_h(t_n, x_n)
@@ -662,12 +662,12 @@ class RexTorchdynWrapper(nn.Module):
         sigma_fn: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
         prediction_type: str = "data",
         model_type: str = "velocity",
-        zeta: float = 0.5,
+        zeta: float = 0.999,
         adaptive: bool = False,
         step_domain: Literal["t", "varsigma"] = "t",
         atol: float = 1e-5,
         rtol: float = 1e-5,
-        eps: float = 1e-5,
+        eps: float = 0.0002,
         min_step: float = 1e-10,
         max_step: Optional[float] = None,
         safety_factor: float = 0.9,
@@ -698,7 +698,7 @@ class RexTorchdynWrapper(nn.Module):
         self.sched_type = sched_type
 
         if tableau is None:
-            self.tableau = RK4() if not adaptive else DOPRI5()
+            self.tableau = Euler() if not adaptive else DOPRI5()
         elif isinstance(tableau, str):
             self.tableau = get_rk_tableau(tableau)
         else:
@@ -1058,14 +1058,15 @@ class RexTorchdynWrapper(nn.Module):
 
 def create_rex_solver(
     model,
-    tableau="rk4",
+    tableau="euler",
     n_steps=50,
     prediction_type="data",
-    zeta=0.5,
+    zeta=0.999,
     adaptive=False,
     step_domain="t",
     atol=1e-5,
     rtol=1e-5,
+    eps=0.0002,
     scheduler=None,
     sched_type="scaled_linear",
 ) -> "RexTorchdynWrapper":
@@ -1117,7 +1118,7 @@ def create_rex_solver(
         step_domain=step_domain,
         atol=atol,
         rtol=rtol,
-        eps=1e-5,
+        eps=eps,
         scheduler=scheduler,
         sched_type=sched_type,
     )

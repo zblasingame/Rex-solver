@@ -29,8 +29,8 @@ Usage
       --num_inference_steps 50 \
       --freeze_step 0.5 \
       --guidance 2.0 \
-      --tableau rk4 \
-      --zeta 0.5 \
+      --tableau euler \
+      --zeta 0.999 \
       --prediction_type data \
       --save_dir results/ablation_rex
 
@@ -99,9 +99,9 @@ class AblationConfig:
     use_time_reparam: bool             # (iii) ς(t) = α/σ reparameterisation
 
     # Fixed across all variants
-    zeta: float = 0.5
+    zeta: float = 0.999
     prediction_type: str = "data"
-    eps: float = 1e-5
+    eps: float = 0.0002
 
 
 # The five variants we compare
@@ -976,7 +976,7 @@ def main():
     parser.add_argument("--tableau", type=str, default="rk4",
                         choices=list_rk_methods(),
                         help="RK tableau used by ALL variants (matched compute)")
-    parser.add_argument("--zeta", type=float, default=0.5,
+    parser.add_argument("--zeta", type=float, default=0.999,
                         help="McCallum-Foster ζ coupling parameter")
     parser.add_argument("--prediction_type", type=str, default="data",
                         choices=["data", "noise"])
@@ -1061,7 +1061,7 @@ def main():
 
     # ── Evaluation models ─────────────────────────────────────────────────
     print("Loading evaluation models …")
-    cs_model = CLIPScore(model_name_or_path="openai/clip-vit-base-patch16").to(device)
+    cs_model = CLIPScore(model_name_or_path="openai/clip-vit-large-patch14").to(device)
     ir_model  = RM.load("ImageReward-v1.0", device=device)
     lpips_model = LearnedPerceptualImagePatchSimilarity(net_type="squeeze").to(device)
     pick_model = PickScoreModel(device=device)

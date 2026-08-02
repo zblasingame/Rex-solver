@@ -1,9 +1,9 @@
 #!/bin/bash
 
 python scripts/image_editing_rex.py \
-    --num_inference_steps 167 \
+    --num_inference_steps 100 \
     --num_images 100 \
-    --freeze_step 0.6 \
+    --freeze_step 0.5 \
     --guidance 3.0 \
     --sampler_type edict \
     --edict_p 0.93 \

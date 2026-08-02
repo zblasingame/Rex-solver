@@ -39,3 +39,5 @@ nohup.out
 # Keep figure assets even though we ignore *.png by default
 # (uncomment if/when a figures/ dir is added)
 # !figures/**
+
+.tmp

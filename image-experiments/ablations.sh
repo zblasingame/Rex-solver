@@ -8,7 +8,7 @@ python scripts/ablations_rex.py \
     --tableau euler \
     --zeta 0.999 \
     --prediction_type noise \
-    --eps 0.0 \
+    --eps 0.0002 \
     --device 1 \
     --variants full no_coupling no_exp no_reparam \
     --save_dir results/ablations/rex_euler50
